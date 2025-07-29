@@ -40,6 +40,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install Task
+        uses: arduino/setup-task@v2
+
       - name: validate
         run: |
           .github/scripts/validate.sh

@@ -1,0 +1,66 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: "3"
+
+vars:
+  CONTAINER_IMAGE_NAME: ecr-proxy
+  SHA: { sh: git rev-parse HEAD }
+  CONTAINER_IMAGE: "{{.CONTAINER_IMAGE_NAME}}:{{.SHA}}"
+
+tasks:
+  default:
+    desc: print task list
+    cmds:
+      - task --list-all
+
+  test:
+    desc: Run tests
+    cmds:
+      - echo "Running tests..."
+      - go test -timeout 20m -p 1 -count 1 -v ./...
+
+  go:fmt:
+    desc: Format the code
+    cmds:
+      - task: go:lint
+      - go fmt ./...
+
+  helm:kubeconform:
+    desc: run kubeconform
+    cmds:
+      - helm plugin install https://github.com/melmorabity/helm-kubeconform
+      - helm kubeconform chart --verbose --summary --strict --exit-on-error
+
+  helm:unit:
+    desc: run helm unit tests
+    cmds:
+      - helm plugin install https://github.com/helm-unittest/helm-unittest
+      - helm unittest chart
+
+
+  go:lint:
+    desc: Lint the code
+    cmds:
+      - go vet ./...
+      - golangci-lint run --timeout 10m
+
+  run:
+    desc: Run the application
+    cmds:
+      - go run main.go
+
+  docker:build:
+    desc: Build the container image
+    cmds:
+      - task: go:fmt
+      - docker build --build-arg gitsha={{.SHA}} -t {{.CONTAINER_IMAGE}} -f Dockerfile .
+
+  docker:enter:
+    desc: Enter into the built container
+    cmds:
+      - docker run -it --rm --entrypoint=sh {{.CONTAINER_IMAGE}}
+
+  docker:push:
+    desc: Push built image
+    cmds:
+      - task: docker:build
+      - docker push {{.CONTAINER_IMAGE}}
