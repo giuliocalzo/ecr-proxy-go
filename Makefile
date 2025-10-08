@@ -1,5 +1,8 @@
 SRC_DIR := .
 GO := go
+COMMIT_HASH := $(shell git rev-parse HEAD)
+
+.PHONY: all build test fmt vet lint run exec docker-build push helm-docs
 
 # Commands
 all: build test
@@ -27,19 +30,20 @@ lint:
 
 run:
 	@echo "Running the application..."
-	go run main.go
+	$(GO) run main.go
+
 exec:
-	@podman build --no-cache -f Dockerfile -t api
-	@podman run api
+	@podman build -f Dockerfile -t ecr-proxy:$(COMMIT_HASH) .
+	@podman run ecr-proxy:$(COMMIT_HASH)
 
 docker-build:
-	@COMMIT_HASH=$(shell git rev-parse HEAD)
-	@podman build --no-cache --build-arg gitsha=$(COMMIT_HASH) -f Dockerfile -t ecr-proxy
+	@podman build --build-arg gitsha=$(COMMIT_HASH) -f Dockerfile -t ecr-proxy:$(COMMIT_HASH) .
+	@podman tag ecr-proxy:$(COMMIT_HASH) ecr-proxy:latest
 
-push:
-	@COMMIT_HASH=$(shell git rev-parse HEAD)
-	@podman build --no-cache --build-arg gitsha=$(COMMIT_HASH) -f Dockerfile -t ecr-proxy
-	@podman push ecr-proxy $(TARGET)
+push: docker-build
+	@if [ -z "$(TARGET)" ]; then echo "Error: TARGET variable is not set"; exit 1; fi
+	@podman push ecr-proxy:$(COMMIT_HASH) $(TARGET):$(COMMIT_HASH)
+	@podman push ecr-proxy:latest $(TARGET):latest
 
 helm-docs:
 	@echo "Generating Helm documentation..."

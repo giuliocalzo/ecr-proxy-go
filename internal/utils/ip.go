@@ -6,13 +6,25 @@ import (
 	"strings"
 )
 
+// IsIPAllowed checks if the given remoteAddr IP is allowed based on the ipWhitelist.
+// remoteAddr should be in the format "IP:port" or just "IP".
+// ipWhitelist is a comma-separated list of IPs or CIDR ranges.
+// Returns true if the IP is in the whitelist, false otherwise.
 func IsIPAllowed(remoteAddr, ipWhitelist string) bool {
+	// Handle empty whitelist - deny all by default
+	if strings.TrimSpace(ipWhitelist) == "" {
+		log.Printf("Empty whitelist - denying access")
+		return false
+	}
+
 	// Split the whitelist into individual CIDRs or IPs
-	whitelist := splitAndTrim(ipWhitelist, ",")
+	whitelist := strings.Split(ipWhitelist, ",")
 	var ipNets []*net.IPNet
 
 	for _, entry := range whitelist {
 		entry = strings.TrimSpace(entry)
+		// Remove spaces around / in CIDR notation
+		entry = strings.ReplaceAll(entry, " ", "")
 		if entry == "" {
 			continue
 		}
@@ -25,25 +37,30 @@ func IsIPAllowed(remoteAddr, ipWhitelist string) bool {
 			}
 		}
 		_, ipnet, err := net.ParseCIDR(entry)
-		if err == nil {
-			ipNets = append(ipNets, ipnet)
+		if err != nil {
+			log.Printf("Warning: invalid whitelist entry '%s': %v", entry, err)
+			continue
 		}
+		ipNets = append(ipNets, ipnet)
 	}
 
-	// Extract the IP from the remote address, handle [::1]:port and IPv4:port
+	// Extract the IP from the remote address using SplitHostPort
 	ipStr := remoteAddr
-	if strings.HasPrefix(ipStr, "[") {
-		// IPv6 in [::1]:port format
-		if end := strings.LastIndex(ipStr, "]"); end != -1 {
-			ipStr = ipStr[1:end]
-		}
-	} else if colonIndex := strings.LastIndex(ipStr, ":"); colonIndex != -1 {
-		ipStr = ipStr[:colonIndex]
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		// Might be IP without port, try parsing directly
+		host = strings.TrimSpace(remoteAddr)
 	}
-	ip := net.ParseIP(strings.TrimSpace(ipStr))
+	
+	ip := net.ParseIP(strings.TrimSpace(host))
 	if ip == nil {
 		log.Printf("Failed to parse IP from remoteAddr: %s", remoteAddr)
 		return false
+	}
+
+	// Normalize IPv4-mapped IPv6 addresses to IPv4
+	if ip.To4() != nil {
+		ip = ip.To4()
 	}
 
 	// Check if the IP is in any of the allowed subnets
@@ -53,19 +70,6 @@ func IsIPAllowed(remoteAddr, ipWhitelist string) bool {
 		}
 	}
 
-	log.Printf("IP %s is not in the whitelist", ip)
+	log.Printf("Access denied for IP (not in whitelist)")
 	return false
-}
-
-// splitAndTrim splits a string by the given separator and trims whitespace from each element.
-func splitAndTrim(s, sep string) []string {
-	parts := strings.Split(s, sep)
-	var result []string
-	for _, part := range parts {
-		trimmed := strings.TrimSpace(part)
-		if trimmed != "" {
-			result = append(result, trimmed)
-		}
-	}
-	return result
 }

@@ -31,9 +31,9 @@ func Generate(certFile, keyFile string) error {
 			Organization: []string{"Self-Signed Certificate"},
 			CommonName:   "localhost",
 		},
-		// DNSNames:              []string{"localhost"},
+		DNSNames:              []string{"localhost"},
 		NotBefore:             time.Now(),
-		NotAfter:              time.Now().Add(3650 * 24 * time.Hour), // Valid for 1 year
+		NotAfter:              time.Now().Add(365 * 24 * time.Hour), // Valid for 1 year
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
@@ -45,26 +45,16 @@ func Generate(certFile, keyFile string) error {
 		return err
 	}
 
-	// Create certificate file
-	certOut, err := os.Create(certFile)
-	if err != nil {
-		return err
-	}
-	defer certOut.Close()
-
-	if err := pem.Encode(certOut, &pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: derBytes,
-	}); err != nil {
-		return err
-	}
-
-	// Create key file
+	// Create key file first with restricted permissions
 	keyOut, err := os.OpenFile(keyFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
-	defer keyOut.Close()
+	defer func() {
+		if cerr := keyOut.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
 
 	privBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
 	if err != nil {
@@ -75,6 +65,32 @@ func Generate(certFile, keyFile string) error {
 		Type:  "PRIVATE KEY",
 		Bytes: privBytes,
 	}); err != nil {
+		return err
+	}
+
+	if err := keyOut.Sync(); err != nil {
+		return err
+	}
+
+	// Create certificate file with restricted permissions
+	certOut, err := os.OpenFile(certFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := certOut.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
+
+	if err := pem.Encode(certOut, &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: derBytes,
+	}); err != nil {
+		return err
+	}
+
+	if err := certOut.Sync(); err != nil {
 		return err
 	}
 

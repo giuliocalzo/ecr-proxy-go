@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 )
 
 type LogEntry struct {
 	Method     string `json:"method"`
-	SourceIp   string `json:"ip"`
+	SourceIP   string `json:"ip"`
 	SourcePort string `json:"port"`
 	Time       string `json:"time"`
 	Msg        string `json:"msg"`
@@ -18,21 +19,58 @@ type LogEntry struct {
 }
 
 func Print(r *http.Request, msg string) {
-	// Log the request details
-	remoteAddr := r.RemoteAddr
-	host, port, err := net.SplitHostPort(remoteAddr)
-	if err != nil {
-		host = remoteAddr // Fallback if no port is present
-		port = ""
+	// Extract client IP with X-Forwarded-For fallback
+	clientIP := r.Header.Get("X-Forwarded-For")
+	if clientIP != "" {
+		// Take the first IP in the list and validate
+		clientIP = strings.Split(clientIP, ",")[0]
+		clientIP = strings.TrimSpace(clientIP)
+		if net.ParseIP(clientIP) == nil {
+			clientIP = ""
+		}
 	}
+	if clientIP == "" {
+		clientIP = r.Header.Get("X-Real-IP")
+		if clientIP != "" && net.ParseIP(clientIP) == nil {
+			clientIP = ""
+		}
+	}
+
+	// Fallback to RemoteAddr
+	remoteAddr := r.RemoteAddr
+	host, port := "", ""
+	if clientIP == "" {
+		var err error
+		host, port, err = net.SplitHostPort(remoteAddr)
+		if err != nil {
+			host = remoteAddr
+			port = ""
+			// Remove IPv6 brackets if present
+			host = strings.Trim(host, "[]")
+		}
+	} else {
+		host = clientIP
+		_, port, _ = net.SplitHostPort(remoteAddr)
+	}
+
+	// Sanitize msg to prevent log injection
+	sanitizedMsg := strings.ReplaceAll(msg, "\n", "\\n")
+	sanitizedMsg = strings.ReplaceAll(sanitizedMsg, "\r", "\\r")
+
 	logEntry := LogEntry{
 		Method:     r.Method,
-		SourceIp:   host,
+		SourceIP:   host,
 		SourcePort: port,
 		Time:       time.Now().Format(time.RFC3339),
-		Msg:        msg,
+		Msg:        sanitizedMsg,
 		Path:       r.URL.Path,
 	}
-	logData, _ := json.Marshal(logEntry)
-	fmt.Println(string(logData))
+
+	logData, err := json.Marshal(logEntry)
+	if err != nil {
+		fmt.Printf("Error marshaling log entry: %v\n", err)
+		return
+	}
+
+	fmt.Printf("%s\n", logData)
 }
