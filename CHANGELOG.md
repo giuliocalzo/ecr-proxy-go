@@ -2,6 +2,10 @@
 
 All notable changes are documented in this file
 
+## 0.0.11
+
+- update org name
+
 ## 0.0.10
 
 - using goreleaser to build docker
