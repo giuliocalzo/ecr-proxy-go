@@ -28,7 +28,7 @@ docker run -d \
     -e AWS_ACCOUNT_ID=1234567890 \
     -e AWS_REGION=us-west-1 \
     -p 5000:5000 \
-    ghcr.io/giuliocalzolari/ecr-proxy-go:latest
+    ghcr.io/giuliocalzo/ecr-proxy-go:latest
 ```
 
 ## Kube Deployment
@@ -60,7 +60,7 @@ Use [AWS IRSA](https://docs.aws.amazon.com/eks/latest/userguide/associate-servic
 install everything with
 
 ```
-helm upgrade --install ecr-proxy oci://ghcr.io/giuliocalzolari/ecr-proxy -n ecr-proxy --create-namespace --debug -f chart/values-example.yaml
+helm upgrade --install ecr-proxy oci://ghcr.io/giuliocalzo/ecr-proxy -n ecr-proxy --create-namespace --debug -f chart/values-example.yaml
 ```
 
 for extra info on helm values [read here](chart/README.md)
