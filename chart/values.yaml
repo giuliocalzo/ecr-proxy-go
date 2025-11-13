@@ -9,7 +9,7 @@ serviceAccount:
   annotations: {}
 
 image:
-  repository: ghcr.io/giuliocalzolari/ecr-proxy-go
+  repository: ghcr.io/giuliocalzo/ecr-proxy-go
   # Overrides the image tag whose default is the chart appVersion.
   tag: ""
   pullPolicy: IfNotPresent

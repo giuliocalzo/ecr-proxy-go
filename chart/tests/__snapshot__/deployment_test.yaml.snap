@@ -47,7 +47,7 @@ manifest should match snapshot:
                   value: /app/tls/tls.crt
                 - name: TLS_KEY_FILE
                   value: /app/tls/tls.key
-              image: ghcr.io/giuliocalzolari/ecr-proxy-go:0.0.0
+              image: ghcr.io/giuliocalzo/ecr-proxy-go:0.0.0
               imagePullPolicy: IfNotPresent
               livenessProbe:
                 failureThreshold: 3
